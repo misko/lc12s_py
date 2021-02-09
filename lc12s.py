@@ -130,7 +130,7 @@ class lc12s_msg:
 m1=lc12s_msg(0x00,0x00,0x00,0x04,0x0A)
 assert(m1.binary()==0xaa5a0000000000000004000a000000120024.to_bytes(18,byteorder='big'))
 
-serial_port_fn='/dev/serial1' # might need to be /dev/seria01
+serial_port_fn='/dev/serial0' # might need to be /dev/seria01
 baudrate=9600
 
 lc12s_serial = serial.Serial(
