@@ -14,28 +14,28 @@ GPIO.setup(set_pin, GPIO.OUT)
 
 
 rf_powers={'12dbm':0,
-	'10dbm':1,
-	'9dbm':2,
-	'8dbm':3,
-	'6dbm':4,
-	'3dbm':5,
-	'0dbm':6,
-	'-2dbm':7,
-	'-5dbm':8,
-	'-10dbm':9,
-	'-15dbm':10,
-	'-20dbm':11,
-	'-25dbm':12,
-	'-30dbm':13,
-	'-35dbm':14}
+    '10dbm':1,
+    '9dbm':2,
+    '8dbm':3,
+    '6dbm':4,
+    '3dbm':5,
+    '0dbm':6,
+    '-2dbm':7,
+    '-5dbm':8,
+    '-10dbm':9,
+    '-15dbm':10,
+    '-20dbm':11,
+    '-25dbm':12,
+    '-30dbm':13,
+    '-35dbm':14}
 
 serial_rates={'600bps':0,
-	'1200bps':1,
-	'2400bps':2,
-	'4800bps':3,
-	'9600bps':4,
-	'19200bps':5,
-	'38400bps':6}
+    '1200bps':1,
+    '2400bps':2,
+    '4800bps':3,
+    '9600bps':4,
+    '19200bps':5,
+    '38400bps':6}
 
 
 #message format
@@ -57,21 +57,21 @@ serial_rates={'600bps':0,
 # 18      Checksum 1byte
 
 msg_format=[
-	'B',
-	'B',
-	'H', # self
-	'H', # net
-	'B', 
-	'B', #rf power
-	'B',
-	'B', # baud
-	'B', 
-	'B', # 12 ,  RF chan
-	'H', # 13,14
-	'B', # 15
-	'B', #16
-	'B', #17
-	'B'] #18
+    'B',
+    'B',
+    'H', # self
+    'H', # net
+    'B', 
+    'B', #rf power
+    'B',
+    'B', # baud
+    'B', 
+    'B', # 12 ,  RF chan
+    'H', # 13,14
+    'B', # 15
+    'B', #16
+    'B', #17
+    'B'] #18
 
 
 #Data Format :
@@ -97,40 +97,40 @@ msg_format=[
 
 
 class lc12s_msg:
-	def __init__(self,module_id, 
-	network_id, 
-	rf_transmit_power,
-	serial_rate,
-	rf_channel,
-	):
-		self.module_id=module_id
-		self.network_id=network_id
-		self.rf_transmit_power=rf_transmit_power
-		self.serial_rate=serial_rate
-		self.rf_channel=rf_channel
+    def __init__(self,module_id, 
+    network_id, 
+    rf_transmit_power,
+    serial_rate,
+    rf_channel,
+    ):
+        self.module_id=module_id
+        self.network_id=network_id
+        self.rf_transmit_power=rf_transmit_power
+        self.serial_rate=serial_rate
+        self.rf_channel=rf_channel
 
 
-	def binary(self):
-		msg=[0xaa,0x5a,self.module_id,
-		    self.network_id,0x00,self.rf_transmit_power,
-		    0x00,self.serial_rate,0x00,self.rf_channel,
-		    0x00,0x00,0x12,0x00,0x00]
-		msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
-		msg[-1]=sum(msg_binary) & 0xFF # add the checksum
-		
-		msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
-		return msg_binary
+    def binary(self):
+        msg=[0xaa,0x5a,self.module_id,
+            self.network_id,0x00,self.rf_transmit_power,
+            0x00,self.serial_rate,0x00,self.rf_channel,
+            0x00,0x00,0x12,0x00,0x00]
+        msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
+        msg[-1]=sum(msg_binary) & 0xFF # add the checksum
+        
+        msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
+        return msg_binary
 
-	def __str__(self):
-	 	return self.binary().hex()
+    def __str__(self):
+         return self.binary().hex()
 
 
 
-#lets make sure we can recreate the one in the docs		
+#lets make sure we can recreate the one in the docs        
 m1=lc12s_msg(0x00,0x00,0x00,0x04,0x0A)
 assert(m1.binary()==0xaa5a0000000000000004000a000000120024.to_bytes(18,byteorder='big'))
 
-serial_port_fn='/dev/ttyS0'
+serial_port_fn='/dev/serial1' # might need to be /dev/seria01
 baudrate=9600
 
 lc12s_serial = serial.Serial(
@@ -149,10 +149,16 @@ GPIO.output(cs_pin, GPIO.LOW)
 time.sleep(0.2)
 
 
-lc12s_serial.write()
+lc12s_serial.write(m1.binary())
+print("done write - this might not fail if it didnt work")
 time.sleep(0.2)
 
 read=[]
+print("waiting for response")
 while len(read)<18:
-	read.append(lc12s_serial.read())
-	print("Read a byte!!!!!!",len(read),'in total')
+    this_byte=lc12s_serial.read()
+    if len(this_byte)==0:
+        print("read timeout")
+    else:
+        read.append(this_byte)
+    print("Read a byte!!!!!!",len(read),'in total',read)
