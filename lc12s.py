@@ -6,7 +6,7 @@ import time
 from struct import pack
 
 GPIO.setmode(GPIO.BOARD)
-cs_pin = 18
+cs_pin = 18 # I think to test parameter setting CS and set can just be both set to low/gnd
 set_pin = 31
 
 GPIO.setup(cs_pin, GPIO.OUT)
