@@ -158,3 +158,13 @@ response=lc12s_serial.read(18)
 m2=lc12s_msg.from_msg(response)
 print(m1)
 print(m2)
+
+print("Go into read / write mode")
+GPIO.output(set_pin, GPIO.HIGH)
+time.sleep(0.2)
+
+while True:
+    print("WRITE")
+    lc12s_serial.write( ("HELLO! I AM %d" % m2.module_id).encode() )
+    response=lc12s_serial.read(100)
+    print(response)
