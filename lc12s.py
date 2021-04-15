@@ -3,11 +3,11 @@ import serial
 from serial import Serial
 import RPi.GPIO as GPIO
 import time
-from struct import pack
+from struct import pack, unpack
 
 GPIO.setmode(GPIO.BOARD)
-cs_pin = 18 # I think to test parameter setting CS and set can just be both set to low/gnd
-set_pin = 31
+cs_pin = 38 # I think to test parameter setting CS and set can just be both set to low/gnd
+set_pin = 40
 
 GPIO.setup(cs_pin, GPIO.OUT)
 GPIO.setup(set_pin, GPIO.OUT)
@@ -56,23 +56,10 @@ serial_rates={'600bps':0,
 # 17      NC 0x00
 # 18      Checksum 1byte
 
-msg_format=[
-    'B',
-    'B',
-    'H', # self
-    'H', # net
-    'B', 
-    'B', #rf power
-    'B',
-    'B', # baud
-    'B', 
-    'B', # 12 ,  RF chan
-    'H', # 13,14
-    'B', # 15
-    'B', #16
-    'B', #17
-    'B'] #18
-
+msg_format='BBHHBBBBBBHBBBB'
+msg_fields=[
+        'h1','h2',
+        'selfID','netID','h3','RFpower','h4','serial','h5','RFchannel','h6','h7','len','h8','checksum']
 
 #Data Format :
 #Host sends: 0xaa + 0x5a + module ID + network ID (ID must be the same) + 0x00 + RF transmit power + 0x00 + serial port rate
@@ -109,20 +96,31 @@ class lc12s_msg:
         self.serial_rate=serial_rate
         self.rf_channel=rf_channel
 
-
     def binary(self):
         msg=[0xaa,0x5a,self.module_id,
             self.network_id,0x00,self.rf_transmit_power,
             0x00,self.serial_rate,0x00,self.rf_channel,
             0x00,0x00,0x12,0x00,0x00]
-        msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
+        #msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
+        msg_binary=pack(msg_format,*msg)
         msg[-1]=sum(msg_binary) & 0xFF # add the checksum
         
-        msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
+        #msg_binary=b"".join([ pack(f,v) for f,v in zip(msg_format,msg) ])
+        msg_binary=pack(msg_format,*msg)
         return msg_binary
 
+
+
+    @classmethod
+    def from_msg(cls,msg):
+        msg_values=unpack(msg_format,msg)
+        d={ msg_fields[i]:msg_values[i] for i in range(len(msg_values)) }
+        m=cls(d['selfID'],d['netID'],d['RFpower'],d['serial'],d['RFchannel'])
+        return m
+
+
     def __str__(self):
-         return self.binary().hex()
+        return "selfID:%x,netID:%x,RFpower:%x,serial:%x,RFchannel:%x " % (self.module_id,self.network_id,self.rf_transmit_power,self.serial_rate,self.rf_channel) + self.binary().hex()
 
 
 
@@ -149,16 +147,14 @@ GPIO.output(cs_pin, GPIO.LOW)
 time.sleep(0.2)
 
 
+print("Sending",m1)
 lc12s_serial.write(m1.binary())
 print("done write - this might not fail if it didnt work")
 time.sleep(0.2)
 
 read=[]
 print("waiting for response")
-while len(read)<18:
-    this_byte=lc12s_serial.read()
-    if len(this_byte)==0:
-        print("read timeout")
-    else:
-        read.append(this_byte)
-    print("Read a byte!!!!!!",len(read),'in total',read)
+response=lc12s_serial.read(18)
+m2=lc12s_msg.from_msg(response)
+print(m1)
+print(m2)
