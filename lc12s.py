@@ -6,21 +6,22 @@ import time
 from struct import pack, unpack
 from functools import partial
 import sys
+import argparse
+from tqdm import tqdm
+parser = argparse.ArgumentParser()
+parser.add_argument("--target-frequency", help="Target broadcast frequency (how often does target broadcast?) [hz]",type=float,default=1)
+parser.add_argument("--cs-pin", help="cs pin",default=38,type=int)
+parser.add_argument("--set-pin", help="set pin",default=40,type=int)
+parser.add_argument("--led-pin", help="led pin",default=11,type=int)
+parser.add_argument("--mode", help="mode [rw,listen]",default="rw",type=str)
+parser.add_argument("--channel", help="RF channel as hex string",default="0x0A",type=str)
+args = parser.parse_args()
 
-if len(sys.argv)!=2:
-    print("%s rw/listen" % sys.argv[0])
-    sys.exit(1)
-
-mode=sys.argv[1]
 
 GPIO.setmode(GPIO.BOARD)
-cs_pin = 38 # I think to test parameter setting CS and set can just be both set to low/gnd
-set_pin = 40
-led_pin = 11
 
-
-GPIO.setup(cs_pin, GPIO.OUT)
-GPIO.setup(set_pin, GPIO.OUT)
+GPIO.setup(args.cs_pin, GPIO.OUT)
+GPIO.setup(args.set_pin, GPIO.OUT)
 
 
 rf_powers={'12dbm':0,
@@ -149,20 +150,21 @@ lc12s_serial = serial.Serial(
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         bytesize=serial.EIGHTBITS,
-        timeout=1
+        timeout=max(0.3,1.0/args.target_frequency)
 )
 
 
-GPIO.output(set_pin, GPIO.LOW)
+GPIO.output(args.set_pin, GPIO.LOW)
 time.sleep(0.2)
-GPIO.output(cs_pin, GPIO.LOW)
+GPIO.output(args.cs_pin, GPIO.LOW)
 time.sleep(0.2)
 
 
 
-if mode=='rw':
+if args.mode=='rw':
     print("Sending",m1)
-    lc12s_serial.write(m1.binary())
+    settings=lc12s_msg(0x00,0x00,0x00,0x04,int(args.channel,16))
+    lc12s_serial.write(settings.binary())
     print("done write - this might not fail if it didnt work")
     time.sleep(0.2)
 
@@ -173,7 +175,7 @@ if mode=='rw':
     print(m1)
     print(m2)
     print("Go into read / write mode")
-    GPIO.output(set_pin, GPIO.HIGH)
+    GPIO.output(args.set_pin, GPIO.HIGH)
     time.sleep(0.2)
 
     while True:
@@ -181,35 +183,61 @@ if mode=='rw':
         lc12s_serial.write( ("HELLO! I AM %d" % m2.module_id).encode() )
         response=lc12s_serial.read(100)
         print(response)
-elif mode=='listen':
+elif args.mode=='scan-channel':
     current_state={'scanning_channel':-1,
             'reads_on_channel':{}}
     def txrx_callback(current_state,pin):
         current_channel=current_state['scanning_channel']
         if current_channel!=-1:
             if current_channel not in current_state['reads_on_channel']:
-                current_state[current_channel]=0
-            current_state[current_channel]+=1
-            print("TXRX",current_state)
-    GPIO.setup(led_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.add_event_detect(led_pin, GPIO.FALLING, callback=partial(txrx_callback,current_state), bouncetime=100)
+                current_state['reads_on_channel'][current_channel]=0
+            current_state['reads_on_channel'][current_channel]+=1
+    GPIO.setup(args.led_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.add_event_detect(args.led_pin, GPIO.FALLING, callback=partial(txrx_callback,current_state), bouncetime=100)
 
     #configure
-    for channel in range(16):
-        current_state['scanning_channel']=-1
-        GPIO.output(set_pin, GPIO.LOW)
-        time.sleep(0.4)
-
+    GPIO.output(args.set_pin, GPIO.LOW)
+    time.sleep(0.1) # give it some time to change from serial mode
+    for channel in tqdm(range(0xFF)):
         settings=lc12s_msg(0x00,0x00,0x00,0x04,channel)
         lc12s_serial.write(settings.binary())
-        time.sleep(0.4)
-        response=lc12s_serial.read(18)
-
-        print(channel)
-        GPIO.output(set_pin, GPIO.HIGH)
         time.sleep(0.1)
+        response=lc12s_msg.from_msg(lc12s_serial.read(18))
+
         current_state['scanning_channel']=channel
-        time.sleep(1)
+        GPIO.output(args.set_pin, GPIO.HIGH)
+        time.sleep(1.0/args.target_frequency)
+
+        current_state['scanning_channel']=-1
+        GPIO.output(args.set_pin, GPIO.LOW)
+        time.sleep(0.1) # give it some time to change from serial mode
+
+        if channel in current_state['reads_on_channel']:
+            print("Channel 0x%x has %d reads" % (channel,current_state['reads_on_channel'][channel]))  
+elif args.mode=='scan-netid':
+    active_netids=set()
+    #configure
+    GPIO.output(args.set_pin, GPIO.LOW)
+    time.sleep(0.1) # give it some time to change from serial mode
+    for netid in tqdm(range(0xFFFF)):
+        settings=lc12s_msg(0x00,netid,0x00,0x04,int(args.channel,16))
+        lc12s_serial.write(settings.binary())
+        time.sleep(0.1)
+        response=lc12s_msg.from_msg(lc12s_serial.read(18))
+
+        GPIO.output(args.set_pin, GPIO.HIGH)
+
+        response=lc12s_serial.read(100)
+        if len(response)>0:
+            active_netids.add(netid)
+            print("NetID 0x%x is active!" % netid)
+
+        GPIO.output(args.set_pin, GPIO.LOW)
+        time.sleep(0.1) # give it some time to change from serial mode
+
+
+
+
 
 
 
