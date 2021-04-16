@@ -4,10 +4,20 @@ from serial import Serial
 import RPi.GPIO as GPIO
 import time
 from struct import pack, unpack
+from functools import partial
+import sys
+
+if len(sys.argv)!=2:
+    print("%s rw/listen" % sys.argv[0])
+    sys.exit(1)
+
+mode=sys.argv[1]
 
 GPIO.setmode(GPIO.BOARD)
 cs_pin = 38 # I think to test parameter setting CS and set can just be both set to low/gnd
 set_pin = 40
+led_pin = 11
+
 
 GPIO.setup(cs_pin, GPIO.OUT)
 GPIO.setup(set_pin, GPIO.OUT)
@@ -147,24 +157,59 @@ GPIO.output(cs_pin, GPIO.LOW)
 time.sleep(0.2)
 
 
-print("Sending",m1)
-lc12s_serial.write(m1.binary())
-print("done write - this might not fail if it didnt work")
-time.sleep(0.2)
 
-read=[]
-print("waiting for response")
-response=lc12s_serial.read(18)
-m2=lc12s_msg.from_msg(response)
-print(m1)
-print(m2)
+if mode=='rw':
+    print("Sending",m1)
+    lc12s_serial.write(m1.binary())
+    print("done write - this might not fail if it didnt work")
+    time.sleep(0.2)
 
-print("Go into read / write mode")
-GPIO.output(set_pin, GPIO.HIGH)
-time.sleep(0.2)
+    read=[]
+    print("waiting for response")
+    response=lc12s_serial.read(18)
+    m2=lc12s_msg.from_msg(response)
+    print(m1)
+    print(m2)
+    print("Go into read / write mode")
+    GPIO.output(set_pin, GPIO.HIGH)
+    time.sleep(0.2)
 
-while True:
-    print("WRITE")
-    lc12s_serial.write( ("HELLO! I AM %d" % m2.module_id).encode() )
-    response=lc12s_serial.read(100)
-    print(response)
+    while True:
+        print("WRITE")
+        lc12s_serial.write( ("HELLO! I AM %d" % m2.module_id).encode() )
+        response=lc12s_serial.read(100)
+        print(response)
+elif mode=='listen':
+    current_state={'scanning_channel':-1,
+            'reads_on_channel':{}}
+    def txrx_callback(current_state,pin):
+        current_channel=current_state['scanning_channel']
+        if current_channel!=-1:
+            if current_channel not in current_state['reads_on_channel']:
+                current_state[current_channel]=0
+            current_state[current_channel]+=1
+            print("TXRX",current_state)
+    GPIO.setup(led_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.add_event_detect(led_pin, GPIO.FALLING, callback=partial(txrx_callback,current_state), bouncetime=100)
+
+    #configure
+    for channel in range(16):
+        current_state['scanning_channel']=-1
+        GPIO.output(set_pin, GPIO.LOW)
+        time.sleep(0.4)
+
+        settings=lc12s_msg(0x00,0x00,0x00,0x04,channel)
+        lc12s_serial.write(settings.binary())
+        time.sleep(0.4)
+        response=lc12s_serial.read(18)
+
+        print(channel)
+        GPIO.output(set_pin, GPIO.HIGH)
+        time.sleep(0.1)
+        current_state['scanning_channel']=channel
+        time.sleep(1)
+
+
+
+
+
