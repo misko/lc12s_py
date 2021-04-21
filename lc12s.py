@@ -151,24 +151,25 @@ lc12s_serial = serial.Serial(
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         bytesize=serial.EIGHTBITS,
-        timeout=max(0.05,1.0/args.target_frequency)
+        timeout=max(0.0001,1.0/args.target_frequency)
 )
 
 
 GPIO.output(args.set_pin, GPIO.LOW)
-time.sleep(0.2)
 GPIO.output(args.cs_pin, GPIO.LOW)
 time.sleep(0.2)
 
 def set_lc12s(settings,retries=3,max_fails=30):
     GPIO.output(args.set_pin, GPIO.LOW) # set it to setting mode
+    time.sleep(0.001)
+    lc12s_serial.reset_output_buffer()
     lc12s_serial.write(settings.binary()) # write the settings
 
     #confirm response
     fails=0
-    raw_response=lc12s_serial.read()
+    raw_response=lc12s_serial.read(18)
     while len(raw_response)<18 and fails<max_fails:
-        raw_response+=lc12s_serial.read()
+        raw_response+=lc12s_serial.read(18-len(raw_response))
         fails+=1
     if fails==max_fails:
         if retries==0:
@@ -211,8 +212,6 @@ elif args.mode=='scan-channel':
         time.sleep(1.0/args.target_frequency)
 
         current_state['scanning_channel']=-1
-        GPIO.output(args.set_pin, GPIO.LOW)
-        #time.sleep(0.1) # give it some time to change from serial mode
 
         if channel in current_state['reads_on_channel']:
             print("Channel 0x%x has %d reads" % (channel,current_state['reads_on_channel'][channel]))  
@@ -231,8 +230,6 @@ elif args.mode=='scan-netid':
             active_netids.add(netid)
             print("NetID 0x%x is active!" % netid)
 
-        GPIO.output(args.set_pin, GPIO.LOW)
-        #time.sleep(0.05) # give it some time to change from serial mode
 
 
 
