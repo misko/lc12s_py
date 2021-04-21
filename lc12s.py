@@ -15,6 +15,7 @@ parser.add_argument("--set-pin", help="set pin",default=40,type=int)
 parser.add_argument("--led-pin", help="led pin",default=11,type=int)
 parser.add_argument("--mode", help="mode [rw,listen]",default="rw",type=str)
 parser.add_argument("--channel", help="RF channel as hex string",default="0x0A",type=str)
+parser.add_argument("--net", help="network id",default="0x0C",type=str)
 args = parser.parse_args()
 
 
@@ -177,27 +178,15 @@ def set_lc12s(settings,retries=3,max_fails=30):
     return lc12s_msg.from_msg(raw_response)
 
 if args.mode=='rw':
-    print("Sending",m1)
     settings=lc12s_msg(0x00,0x00,0x00,0x04,int(args.channel,16))
-    lc12s_serial.write(settings.binary())
-    print("done write - this might not fail if it didnt work")
-    time.sleep(0.2)
-
-    read=[]
-    print("waiting for response")
-    response=lc12s_serial.read(18)
-    m2=lc12s_msg.from_msg(response)
-    print(m1)
-    print(m2)
+    self_response=set_lc12s(settings)
     print("Go into read / write mode")
     GPIO.output(args.set_pin, GPIO.HIGH)
     time.sleep(0.2)
 
     while True:
-        print("WRITE")
-        lc12s_serial.write( ("HELLO! I AM %d" % m2.module_id).encode() )
+        lc12s_serial.write( ("HELLO! I AM %d" % self_response.module_id).encode() )
         response=lc12s_serial.read(100)
-        print(response)
 elif args.mode=='scan-channel':
     current_state={'scanning_channel':-1,
             'reads_on_channel':{}}
@@ -213,7 +202,7 @@ elif args.mode=='scan-channel':
     #configure
     GPIO.output(args.set_pin, GPIO.LOW)
     #time.sleep(0.1) # give it some time to change from serial mode
-    for channel in tqdm(range(0xFF)):
+    for channel in tqdm(range(128)):
         settings=lc12s_msg(0x00,0x00,0x00,0x04,channel)
         set_lc12s(settings)
 
@@ -231,7 +220,7 @@ elif args.mode=='scan-netid':
     active_netids=set()
     #configure
     GPIO.output(args.set_pin, GPIO.LOW)
-    for netid in tqdm(range(0xFFFF)):
+    for netid in tqdm(range(0xFFFF+1)):
         settings=lc12s_msg(0x00,netid,0x00,0x04,int(args.channel,16))
         lc12s_serial.write(settings.binary())
 
