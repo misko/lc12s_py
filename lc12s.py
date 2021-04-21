@@ -15,7 +15,7 @@ parser.add_argument("--set-pin", help="set pin",default=40,type=int)
 parser.add_argument("--led-pin", help="led pin",default=11,type=int)
 parser.add_argument("--mode", help="mode [rw,listen]",default="rw",type=str)
 parser.add_argument("--channel", help="RF channel as hex string",default="0x0A",type=str)
-parser.add_argument("--net", help="network id",default="0x0C",type=str)
+parser.add_argument("--netid", help="network id",default="0x0C",type=str)
 args = parser.parse_args()
 
 
@@ -178,7 +178,7 @@ def set_lc12s(settings,retries=3,max_fails=30):
     return lc12s_msg.from_msg(raw_response)
 
 if args.mode=='rw':
-    settings=lc12s_msg(0x00,0x00,0x00,0x04,int(args.channel,16))
+    settings=lc12s_msg(0x00,int(args.netid,16),0x00,0x04,int(args.channel,16))
     self_response=set_lc12s(settings)
     print("Go into read / write mode")
     GPIO.output(args.set_pin, GPIO.HIGH)
@@ -222,16 +222,11 @@ elif args.mode=='scan-netid':
     GPIO.output(args.set_pin, GPIO.LOW)
     for netid in tqdm(range(0xFFFF+1)):
         settings=lc12s_msg(0x00,netid,0x00,0x04,int(args.channel,16))
-        lc12s_serial.write(settings.binary())
-
-        raw_response=lc12s_serial.read()
-        while len(raw_response)<18:
-            raw_response+=lc12s_serial.read()
-        response=lc12s_msg.from_msg(raw_response)
+        set_lc12s(settings)
 
         GPIO.output(args.set_pin, GPIO.HIGH)
 
-        response=lc12s_serial.read(100)
+        response=lc12s_serial.read(10)
         if len(response)>0:
             active_netids.add(netid)
             print("NetID 0x%x is active!" % netid)
