@@ -8,6 +8,8 @@ from functools import partial
 import sys
 import argparse
 from tqdm import tqdm
+from datetime import date
+import time
 parser = argparse.ArgumentParser()
 parser.add_argument("--target-frequency", help="Target broadcast frequency (how often does target broadcast?) [hz]",type=float,default=1)
 parser.add_argument("--cs-pin", help="cs pin",default=38,type=int)
@@ -229,6 +231,23 @@ elif args.mode=='scan-netid':
         if len(response)>0:
             active_netids.add(netid)
             print("NetID 0x%x is active!" % netid)
+elif args.mode=='read-to-file':
+    GPIO.output(args.set_pin, GPIO.LOW)
+    settings=lc12s_msg(0x00,int(args.netid,16),0x00,0x04,int(args.channel,16))
+    set_lc12s(settings)
+
+    GPIO.output(args.set_pin, GPIO.HIGH)
+
+    fn="reads_ch%s_netid%s_%s.bin" % (args.channel,args.netid,date.fromtimestamp(time.time()))
+    f=open(fn,'ab')
+
+    total=0
+    while True:
+        response=lc12s_serial.read(10)
+        if len(response)>0:
+            total+=f.write(response)
+            print("Wrote %d bytes" % total)
+
 
 
 
