@@ -123,8 +123,6 @@ class lc12s_msg:
         msg_binary=pack(msg_format,*msg)
         return msg_binary
 
-
-
     @classmethod
     def from_msg(cls,msg):
         msg_values=unpack(msg_format,msg)
@@ -190,6 +188,36 @@ if args.mode=='rw':
     while True:
         lc12s_serial.write( ("HELLO! I AM %d" % self_response.module_id).encode() )
         response=lc12s_serial.read(100)
+elif args.mode=='test':
+    settings=lc12s_msg(0x00,int(args.netid,16),0x00,0x04,int(args.channel,16))
+    self_response=set_lc12s(settings)
+    print("Go into read / write mode")
+    GPIO.output(args.set_pin, GPIO.HIGH)
+    time.sleep(0.2)
+
+    #make a spa object
+    spa=Spa(model='?',channel=args.channel)
+    #try to increase the temperate
+    increase_msg=spa.create_command_message(spa.commands['increase'])
+    for _ in range(10):
+        lc12s_serial.write(increase_msg)
+        time.sleep(5)
+    #try to toggle CF
+    toggle_cf_msg=spa.create_command_message(spa.commands['toggle_CF'])
+    for _ in range(3):
+        lc12s_serial.write(toggle_cf_msg)
+        time.sleep(5)
+    #try to turn on bubbles?  
+    bubbles_msg=spa.create_command_message(spa.commands['bubbles'])
+    for _ in range(3):
+        lc12s_serial.write(bubbles_msg)
+        time.sleep(5)
+    #try to turn on / off?
+    on_off_msg=spa.create_command_message(spa.commands['on_off'])
+    for _ in range(3):
+        lc12s_serial.write(on_off_msg)
+        time.sleep(30)
+
 elif args.mode=='scan-channel':
     current_state={'scanning_channel':-1,
             'reads_on_channel':{}}
