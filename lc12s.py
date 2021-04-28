@@ -10,6 +10,7 @@ import argparse
 from tqdm import tqdm
 from datetime import date
 import time
+from spa import Spa
 parser = argparse.ArgumentParser()
 parser.add_argument("--target-frequency", help="Target broadcast frequency (how often does target broadcast?) [hz]",type=float,default=1)
 parser.add_argument("--cs-pin", help="cs pin",default=38,type=int)
@@ -196,25 +197,29 @@ elif args.mode=='test':
     time.sleep(0.2)
 
     #make a spa object
-    spa=Spa(model='?',channel=args.channel)
+    spa=Spa(model='?',channel=int(args.channel,16))
     #try to increase the temperate
     increase_msg=spa.create_command_message(spa.commands['increase'])
     for _ in range(10):
+        print("temp up")
         lc12s_serial.write(increase_msg)
         time.sleep(5)
     #try to toggle CF
     toggle_cf_msg=spa.create_command_message(spa.commands['toggle_CF'])
     for _ in range(3):
+        print("toggle temperature")
         lc12s_serial.write(toggle_cf_msg)
         time.sleep(5)
     #try to turn on bubbles?  
     bubbles_msg=spa.create_command_message(spa.commands['bubbles'])
     for _ in range(3):
+        print("toggle bubbles")
         lc12s_serial.write(bubbles_msg)
         time.sleep(5)
     #try to turn on / off?
     on_off_msg=spa.create_command_message(spa.commands['on_off'])
     for _ in range(3):
+        print("toggle on/off")
         lc12s_serial.write(on_off_msg)
         time.sleep(30)
 
