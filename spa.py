@@ -15,9 +15,9 @@ class Spa:
         ('crc',2,'H')]
     spa_message_fields_and_lengths=[('command_char',1,'B'),
         ('ncA',1,'B'),
-        ('configA',1,'B'),
+        ('configA',1,'B'), # 128+1 after controller sends on/off
         ('ncB',1,'B'),
-        ('configB',1,'B'),
+        ('configB',1,'B'), 
         ('actualTemp',1,'B'),
         ('ncD',1,'B'),
         ('setTemp',1,'B'),
@@ -32,6 +32,11 @@ class Spa:
            'toggle_CF': 0x0002,
            'decrease': 0x0008,
            'increase': 0x0004 } 
+
+    configB={'spa_on':0x1,
+            'bubbles_on': 0x10,
+            'filter_on': 0x8,
+            'heater_on': 0x4}
 
 
     spa_message_length=sum([ field[1] for field in spa_message_fields_and_lengths ])
